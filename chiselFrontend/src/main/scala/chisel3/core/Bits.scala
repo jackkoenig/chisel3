@@ -4,6 +4,7 @@ package chisel3.core
 
 import scala.language.experimental.macros
 
+import PrintableAPI._
 import chisel3.internal._
 import chisel3.internal.Builder.pushOp
 import chisel3.internal.firrtl._
@@ -249,6 +250,9 @@ sealed abstract class Bits(dirArg: Direction, width: Width, override val litArg:
     res := that
     res
   }
+
+  /** Default print as [[PrintableAPI.Decimal]] */
+  final def toPrintable: Printable = Decimal(this)
 }
 
 /** Provides a set of operations to create UInt types and literals.

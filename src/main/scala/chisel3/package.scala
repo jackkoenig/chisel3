@@ -1,4 +1,4 @@
-package object chisel3 {
+package object chisel3 extends PrintableAPI {
   import scala.language.experimental.macros
 
   import internal.firrtl.Width
@@ -79,4 +79,71 @@ package object chisel3 {
     def do_!= (that: BitPat)(implicit sourceInfo: SourceInfo): Bool = that != x
     def do_=/= (that: BitPat)(implicit sourceInfo: SourceInfo): Bool = that =/= x
   }
+
+ /** Implicit for custom String interpolators for BigInt literal creation */
+  implicit class stringsToBigInt(val sc: StringContext) extends AnyVal {
+    /** Generator for string interpolator functions */
+    private def genInterpolator(
+        args: Seq[Any],
+        legalChars: Set[Char],
+        ignoreChars: Set[Char],
+        base: Int): BigInt = {
+      require(sc.parts.size == 1 && args.size == 0,
+        "Variables are not allowed!")
+      require(sc.parts.head forall legalChars,
+        "The only legal characters are " +
+        (legalChars.toList.sorted map (c => s"'$c'") mkString ", "))
+      BigInt(sc.parts.head filterNot ignoreChars, base)
+    }
+    // defs because fields aren't allowed in implicit class
+    private def ignore = Set('_', ' ')
+    private def binary = Set('0', '1')
+    private def hex = ('a' to 'f').toSet ++ ('A' to 'F').toSet ++ ('0' to '9').toSet
+    /* String interpolator for turning creating BigInts from binary literals
+     * @example
+     * {{{
+     *  scala> val myBinNum = b"1010"
+     *  res0: scala.math.BigInt = 10
+     * }}}
+     */
+    def b(args: Any*): BigInt = genInterpolator(args, ignore ++ binary, ignore, 2)
+    /* String interpolator for turning creating BigInts from hexadecimal literals
+     * @example
+     * {{{
+     *  scala> val myBinNum = h"ff"
+     *  res0: scala.math.BigInt = 255
+     * }}}
+     */
+    def h(args: Any*): BigInt = genInterpolator(args, ignore ++ hex, ignore, 16)
+  }
+
+  /** Implicit for custom Printable string interpolator */
+  implicit class PrintableHelper(val sc: StringContext) extends AnyVal {
+    /** Custom string interpolator for generating Printables: p"..."
+      * Will call .toString on any non-Printable arguments (mimicking s"...")
+      */
+    def p(args: Any*): Printable = {
+      sc.checkLengths(args) // Enforce sc.parts.size == pargs.size + 1
+      val pargs: Seq[Option[Printable]] = args map {
+        case p: Printable => Some(p)
+        case d: Data => Some(d.toPrintable)
+        case any => for {
+          v <- Option(any) // Handle null inputs
+          str = v.toString
+          if !str.isEmpty // Handle empty Strings
+        } yield PString(str)
+      }
+      val parts = sc.parts map StringContext.treatEscapes
+      // Zip sc.parts and pargs together ito flat Seq
+      // eg. Seq(sc.parts(0), pargs(0), sc.parts(1), pargs(1), ...)
+      val seq = for { // append None because sc.parts.size == pargs.size + 1
+        (literal, arg) <- parts zip (pargs :+ None)
+        optPable <- Seq(Some(PString(literal)), arg)
+        pable <- optPable // Remove Option[_]
+      } yield pable
+      Printables(seq)
+    }
+  }
+
+  implicit def string2Printable(str: String): Printable = PString(str)
 }

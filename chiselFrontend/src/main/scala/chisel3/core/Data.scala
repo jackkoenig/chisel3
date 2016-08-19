@@ -4,6 +4,7 @@ package chisel3.core
 
 import scala.language.experimental.macros
 
+import PrintableAPI._
 import chisel3.internal._
 import chisel3.internal.Builder.pushCommand
 import chisel3.internal.firrtl._
@@ -132,6 +133,9 @@ abstract class Data(dirArg: Direction) extends HasId {
 
   def do_asUInt(implicit sourceInfo: SourceInfo): UInt =
     SeqUtils.do_asUInt(this.flatten)(sourceInfo)
+
+  /** Default pretty printing */
+  def toPrintable: Printable
 }
 
 object Wire {
@@ -171,4 +175,7 @@ sealed class Clock(dirArg: Direction) extends Element(dirArg, Width(1)) {
     case _: Clock => this connect that
     case _ => this badConnect that
   }
+
+  /** Not really supported */
+  def toPrintable: Printable = PString("CLOCK")
 }
